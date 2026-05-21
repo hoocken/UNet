@@ -1,0 +1,21 @@
+data:
+  filepath: 'train.json'
+  image_dir: '/media/data/student/'
+  labels_dir: '/media/data/student/'
+  batch_size: 42
+
+train:
+  model_dir: 'models'
+  lr: 0.0003
+  num_classes: 74
+  decay: 0.2
+  moving_avg_alpha: 0.1
+  patience: 30
+  valid_cutoff: 60
+  train_threshold: 0.005
+  valid_threshold: 0.005
+  total_epochs: 200
+  epoch_length: 250
+  save_every: 25
+  
+
