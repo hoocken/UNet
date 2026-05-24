@@ -7,9 +7,7 @@ import hydra
 from data.dataset import build_loader
 from solver import Solver
 
-CONFIG_PATH = Path() / 'config' / 'config.yaml'
-
-@hydra(config_path='config', config_name='config')
+@hydra.main(version_base=None, config_path='config', config_name='config')
 def main(config: DictConfig):
     config_data = config.data
     config_train = config.train
@@ -18,7 +16,8 @@ def main(config: DictConfig):
         config_data.filepath,
         config_data.image_dir,
         config_data.labels_dir,
-        config_data.batch_size
+        batch_size=config_data.batch_size,
+        limit_files=40,
     )
 
     solver = Solver(

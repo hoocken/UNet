@@ -10,13 +10,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 from model.loss import UNetLoss
 from model.unet import UNet
+from data.dataloader import infinite_iterator
 
 
 class Solver():
     def __init__(self, train_ld, validation_ld, config):
         self.model_dir = config.model_dir
 
-        self.train_iter = iter(train_ld)
+        self.train_iter = infinite_iterator(train_ld)
         self.validation_iter = iter(validation_ld)
 
         self.lr = config.lr
@@ -58,7 +59,7 @@ class Solver():
     @torch.no_grad 
     def validate(self):
         ema_valid_loss = None
-        for images, labels in self.valid_iter:
+        for images, labels in self.validation_iter:
             images, labels = images.to(self.device), labels.to(self.device)
 
             pred = self.unet(images)
@@ -77,12 +78,15 @@ class Solver():
         patience = 0
         cutoff = 0
 
+        print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
             pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch")
             ema_train_loss = None
 
             for _ in tqdm(range(self.epoch_length)):
-                images, labels = next(self.train_iter).to(self.device)
+                images, labels = next(self.train_iter)
+                images = images.to(self.device)
+                labels = labels.to(self.device)
                 pred = self.unet(images)
                 loss = self.criteria(pred, labels)
 

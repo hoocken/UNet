@@ -8,7 +8,7 @@ class Conv(nn.Module):
                  num_layers):
         super(Conv, self).__init__()
         conv_layers = [
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=0),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding='same'), # nnUNet uses same padding
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
         ]
@@ -16,7 +16,7 @@ class Conv(nn.Module):
         conv_layers += [
             x for _ in range(num_layers - 1)
             for x in [
-                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=0),
+                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding='same'),
                 nn.BatchNorm2d(out_channels),
                 nn.ReLU(),
             ]
@@ -89,11 +89,11 @@ class UpConv(nn.Module):
             skip: Shape of (N, C, H', W')
         """
         up = self.up(x)
-        _, _, H, W = up.size
-        pad_h = (skip.size[2] - H) // 2
-        pad_w = (skip.size[3] - W) // 2
+        _, _, H, W = up.shape
+        pad_h = (skip.shape[2] - H) // 2
+        pad_w = (skip.shape[3] - W) // 2
         crop = skip[:, :, pad_h:pad_h + H, pad_w:pad_w + W]
 
-        assert crop.size == up.size
+        assert crop.shape == up.shape
         concat = torch.concatenate([crop, up], axis=1) # Concat the channels
         return self.convs(concat)
