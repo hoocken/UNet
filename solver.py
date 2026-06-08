@@ -70,7 +70,8 @@ class Solver():
         self.writer = SummaryWriter(Path() / config.model_dir / 'logs' / datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     @torch.no_grad 
-    def validate(self, ema_valid_loss):
+    def validate(self):
+        valid_loss_list = []
         pbar = tqdm(total=self.valid_epoch_length, ncols=0, desc="Valid Epoch", file=sys.stdout)
         for _ in range(self.valid_epoch_length):
             images, labels = next(self.train_iter)
@@ -79,17 +80,15 @@ class Solver():
             pred = self.unet(images)
             loss = self.criteria(pred, labels)
 
-            if ema_valid_loss:
-                ema_valid_loss = self.moving_avg_alpha * loss.item() + (1 - self.moving_avg_alpha) * ema_valid_loss
-            else:
-                ema_valid_loss = loss.item()
+            valid_loss_list.append(loss.detach().item())
+           
 
             pbar.update(1)
-            pbar.set_postfix(loss=ema_valid_loss)
+            pbar.set_postfix(loss=sum(valid_loss_list) / len(valid_loss_list))
 
         pbar.close()
 
-        return ema_valid_loss
+        return sum(valid_loss_list) / len(valid_loss_list)
 
     def train(self):
         max_train_loss = None
@@ -98,11 +97,13 @@ class Solver():
         patience = 0
         cutoff = 0
         saved_model = None
+
         ema_train_loss = None
         ema_valid_loss = None
 
         print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
+            train_loss_list = []
             pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
 
             for _ in range(self.epoch_length):
@@ -112,12 +113,6 @@ class Solver():
 
                 images, labels = self.transform(images, labels)
 
-                # print(images.shape, labels.shape)
-                # plt.imsave("img_plot.png", images[0][0].cpu())
-                # plt.imsave("label_plot.png", labels[0][1].cpu())
-
-                # raise Exception
-
                 pred = self.unet(images)
                 loss = self.criteria(pred, labels)
 
@@ -125,17 +120,21 @@ class Solver():
                 loss.backward()
 
                 self.optimizer.step()
-                
-                if ema_train_loss:
-                    ema_train_loss = self.moving_avg_alpha * loss.item() + (1 - self.moving_avg_alpha) * ema_train_loss
-                else:
-                    ema_train_loss = loss.item()
-                
+
+                train_loss_list.append(loss.detach().item())
+               
                 pbar.update(1)
-                pbar.set_postfix(loss=ema_train_loss)
+                pbar.set_postfix(loss=sum(train_loss_list) / len(train_loss_list))
 
             pbar.close()
             
+            mean_train_loss = sum(train_loss_list) / len(train_loss_list)
+
+            if ema_train_loss is None:
+                ema_train_loss = mean_train_loss
+            else:
+                ema_train_loss = self.moving_avg_alpha * mean_train_loss + (1 - self.moving_avg_alpha) * ema_train_loss
+
             # Check EMA of training loss
             if max_train_loss is None:
                 max_train_loss = ema_train_loss
@@ -155,7 +154,14 @@ class Solver():
             # ----------------------------------------------------------
             # Validation
             # ----------------------------------------------------------
-            ema_valid_loss = self.validate(ema_valid_loss)
+            mean_valid_loss = self.validate()
+
+            if ema_valid_loss is None:
+                ema_valid_loss = mean_valid_loss
+            else:
+                ema_valid_loss = self.moving_avg_alpha * mean_valid_loss + (1 - self.moving_avg_alpha) * ema_valid_loss
+
+            tqdm.write(f'[TRAIN: {i + 1}] loss = {ema_train_loss}', file=sys.stdout)
             tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
             self.writer.add_scalar('eval/loss', ema_valid_loss, i)
 
