@@ -9,11 +9,11 @@ from tqdm import tqdm
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import v2
-import matplotlib.pyplot as plt
 
 from model.loss import UNetLoss
 from model.unet import UNet
 from data.dataloader import infinite_iterator
+from data.transform import RandomAffine, RandomCrop, GaussianBlur, RandomHorizontalFlip, RandomResize, RandomRotation
 
 
 
@@ -42,13 +42,14 @@ class Solver():
 
         self.epoch_length = config.epoch_length
         self.total_epochs = config.total_epochs
+        self.valid_epoch_length = config.valid_epoch_length
         self.start_epoch = 0
 
         self.transform = v2.Compose([
-            v2.RandomHorizontalFlip(0.5),
-            v2.RandomRotation(180),
-            # v2.GaussianNoise(),
-            v2.RandomResizedCrop(512, (0.6, 1)),
+            RandomHorizontalFlip(),
+            RandomCrop(),
+            RandomAffine(),
+            GaussianBlur(),
         ])
 
         if config.load_state:
@@ -71,15 +72,21 @@ class Solver():
     @torch.no_grad 
     def validate(self):
         ema_valid_loss = None
-        for images, labels in self.validation_ld:
+        pbar = tqdm(total=self.valid_epoch_length, ncols=0, desc="Valid Epoch", file=sys.stdout)
+        for _ in range(self.valid_epoch_length):
+            images, labels = next(self.train_iter)
             images, labels = images.to(self.device), labels.to(self.device)
 
             pred = self.unet(images)
             loss = self.criteria(pred, labels)
+
             if ema_valid_loss:
                 ema_valid_loss = self.moving_avg_alpha * loss.item() + (1 - self.moving_avg_alpha) * ema_valid_loss
             else:
                 ema_valid_loss = loss.item()
+
+            pbar.update(1)
+            pbar.set_postfix(loss=ema_valid_loss)
 
         return ema_valid_loss
 
@@ -96,18 +103,18 @@ class Solver():
             pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
             ema_train_loss = None
 
-            for _ in tqdm(range(self.epoch_length)):
+            for _ in range(self.epoch_length):
                 images, labels = next(self.train_iter)
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
                 images, labels = self.transform(images, labels)
 
-                print(images.shape, labels.shape)
-                plt.imsave("img_plot.png", images[0][0].cpu())
-                plt.imsave("label_plot.png", labels[0][1].cpu())
+                # print(images.shape, labels.shape)
+                # plt.imsave("img_plot.png", images[0][0].cpu())
+                # plt.imsave("label_plot.png", labels[0][1].cpu())
 
-                raise Exception
+                # raise Exception
 
                 pred = self.unet(images)
                 loss = self.criteria(pred, labels)
@@ -143,7 +150,7 @@ class Solver():
             # Validation
             # ----------------------------------------------------------
             ema_valid_loss = self.validate()
-            tqdm.write(f'[EVAL: {i}] loss = {ema_valid_loss}')
+            tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
             self.writer.add_scalar('eval/loss', ema_valid_loss, i)
 
             # Check EMA of validation loss
