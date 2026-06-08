@@ -1,7 +1,5 @@
 import json
-import os
 from pathlib import Path
-import random
 import torch
 from PIL import Image
 from torchvision.transforms.functional import pil_to_tensor
@@ -11,7 +9,7 @@ from data.dataloader import MultiEpochsDataLoader
 from torch.utils import data
 
 class UNet_Dataset(data.Dataset):
-    def __init__(self, filepath: str, image_dir: str, labels_dir: str, limit_files=None):
+    def __init__(self, filepath: str, image_dir: str, labels_dir: str, limit_files: int=None):
         self.filepath = filepath
         self.image_dir = image_dir
         self.labels_dir = labels_dir
@@ -31,6 +29,7 @@ class UNet_Dataset(data.Dataset):
 
         label = np.load(items['label'])
         label = torch.tensor(label).to(torch.float32)
+        
         return image, label
         
     def _load_data(self, path):
@@ -52,7 +51,7 @@ class UNet_Dataset(data.Dataset):
                 }
 
                 num += 1
-                if num >= self.limit_files:
+                if not self.limit_files is None and num >= self.limit_files:
                     break
 
         return items
@@ -61,8 +60,8 @@ def build_loader(filepath, image_dir, labels_dir, batch_size=42, limit_files=Non
     dataset = UNet_Dataset(filepath, image_dir, labels_dir, limit_files)
     generator = torch.Generator().manual_seed(200)
 
-    train_set, validation_set = data.random_split(dataset, [0.7, 0.3], generator)
-
+    train_set, validation_set = data.random_split(dataset, [0.8, 0.2], generator)
+    
     train_ld = MultiEpochsDataLoader(
         train_set,
         batch_size=batch_size,
