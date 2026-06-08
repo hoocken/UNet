@@ -22,6 +22,7 @@ train:
   valid_threshold: 0.005
   total_epochs: 200
   epoch_length: 250
+  valid_epoch_length: 50
   save_every: 100
   load_state: False
   
