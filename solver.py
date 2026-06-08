@@ -149,7 +149,8 @@ class Solver():
                 patience = 0
                 max_train_loss = ema_train_loss
 
-            self.writer.add_scalar('train/loss', ema_train_loss, i)
+            self.writer.add_scalar('train/ema_loss', ema_train_loss, i)
+            self.writer.add_scalar('train/loss', mean_train_loss, i)
             
             # ----------------------------------------------------------
             # Validation
@@ -163,7 +164,8 @@ class Solver():
 
             tqdm.write(f'[TRAIN: {i + 1}] loss = {ema_train_loss}', file=sys.stdout)
             tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
-            self.writer.add_scalar('eval/loss', ema_valid_loss, i)
+            self.writer.add_scalar('eval/ema_loss', ema_valid_loss, i)
+            self.writer.add_scalar('eval/train_loss', mean_valid_loss, i)
 
             # Check EMA of validation loss
             if max_valid_loss is None:
