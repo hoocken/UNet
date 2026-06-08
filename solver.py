@@ -70,8 +70,7 @@ class Solver():
         self.writer = SummaryWriter(Path() / config.model_dir / 'logs' / datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     @torch.no_grad 
-    def validate(self):
-        ema_valid_loss = None
+    def validate(self, ema_valid_loss):
         pbar = tqdm(total=self.valid_epoch_length, ncols=0, desc="Valid Epoch", file=sys.stdout)
         for _ in range(self.valid_epoch_length):
             images, labels = next(self.train_iter)
@@ -87,6 +86,8 @@ class Solver():
 
             pbar.update(1)
             pbar.set_postfix(loss=ema_valid_loss)
+            
+        pbar.close()
 
         return ema_valid_loss
 
@@ -97,11 +98,12 @@ class Solver():
         patience = 0
         cutoff = 0
         saved_model = None
+        ema_train_loss = None
+        ema_valid_loss = None
 
         print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
             pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
-            ema_train_loss = None
 
             for _ in range(self.epoch_length):
                 images, labels = next(self.train_iter)
@@ -131,6 +133,7 @@ class Solver():
                 
                 pbar.update(1)
                 pbar.set_postfix(loss=ema_train_loss)
+            pbar.close()
             
             # Check EMA of training loss
             if max_train_loss is None:
@@ -149,7 +152,7 @@ class Solver():
             # ----------------------------------------------------------
             # Validation
             # ----------------------------------------------------------
-            ema_valid_loss = self.validate()
+            ema_valid_loss = self.validate(ema_valid_loss)
             tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
             self.writer.add_scalar('eval/loss', ema_valid_loss, i)
 
