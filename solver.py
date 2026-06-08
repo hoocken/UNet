@@ -2,23 +2,29 @@ from collections import deque
 from datetime import datetime
 import os
 from pathlib import Path
+import sys
 
 import torch
 from tqdm import tqdm
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.transforms import v2
+import matplotlib.pyplot as plt
 
 from model.loss import UNetLoss
 from model.unet import UNet
 from data.dataloader import infinite_iterator
 
 
+
 class Solver():
     def __init__(self, train_ld, validation_ld, config):
         self.model_dir = config.model_dir
 
+        self.train_ld = train_ld
+        self.validation_ld = validation_ld
+
         self.train_iter = infinite_iterator(train_ld)
-        self.validation_iter = iter(validation_ld)
 
         self.lr = config.lr
 
@@ -38,10 +44,16 @@ class Solver():
         self.total_epochs = config.total_epochs
         self.start_epoch = 0
 
+        self.transform = v2.Compose([
+            v2.RandomHorizontalFlip(0.5),
+            v2.RandomRotation(180),
+            # v2.GaussianNoise(),
+            v2.RandomResizedCrop(512, (0.6, 1)),
+        ])
+
         if config.load_state:
             checkpoint = torch.load(config.load_state, weights_only=True)
             self.unet.load_state_dict(checkpoint['unet_state_dict'])
-            self.criteria.load_state_dict(checkpoint['criteria_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict']) # LR decay
             self.start_epoch = config.start_epoch
@@ -59,7 +71,7 @@ class Solver():
     @torch.no_grad 
     def validate(self):
         ema_valid_loss = None
-        for images, labels in self.validation_iter:
+        for images, labels in self.validation_ld:
             images, labels = images.to(self.device), labels.to(self.device)
 
             pred = self.unet(images)
@@ -77,16 +89,26 @@ class Solver():
 
         patience = 0
         cutoff = 0
+        saved_model = None
 
         print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
-            pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch")
+            pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
             ema_train_loss = None
 
             for _ in tqdm(range(self.epoch_length)):
                 images, labels = next(self.train_iter)
                 images = images.to(self.device)
                 labels = labels.to(self.device)
+
+                images, labels = self.transform(images, labels)
+
+                print(images.shape, labels.shape)
+                plt.imsave("img_plot.png", images[0][0].cpu())
+                plt.imsave("label_plot.png", labels[0][1].cpu())
+
+                raise Exception
+
                 pred = self.unet(images)
                 loss = self.criteria(pred, labels)
 
@@ -108,6 +130,8 @@ class Solver():
                 max_train_loss = ema_train_loss
             elif max_train_loss - self.train_threshold < ema_train_loss:
                 patience += 1
+            else:
+                patience = 0
             
             if patience >= self.patience:
                 self.scheduler.step()
@@ -125,16 +149,19 @@ class Solver():
             # Check EMA of validation loss
             if max_valid_loss is None:
                 max_valid_loss = ema_valid_loss
-            elif ema_valid_loss - self.valid_threshold < ema_valid_loss:
+            elif max_valid_loss - self.valid_threshold < ema_valid_loss and self.scheduler.get_last_lr()[0] > 1e-6:
                 cutoff += 1
+            else:
+                cutoff = 0
+                max_valid_loss = ema_valid_loss
+                saved_model = self.unet.state_dict()
 
             if i % self.save == 0 or cutoff >= self.valid_cutoff:
-                checkpoint = self.checkpoints / (f'/unet-epoch{i}.pt' if i % self.save == 0 else '/final-weights.pt')
+                checkpoint = self.checkpoints / (f'unet-epoch{i}.pt' if i % self.save == 0 else 'final-weights.pt')
                 self.unet.cpu()
                 torch.save({
                     'epoch': i,
-                    'unet_state_dict': self.unet.state_dict(),
-                    'criteria_state_dict': self.criteria.state_dict(),
+                    'unet_state_dict': self.unet.state_dict() if i % self.save == 0 else saved_model,
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'scheduler_state_dict': self.scheduler.state_dict(),
                     'loss': ema_valid_loss,
