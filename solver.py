@@ -86,7 +86,7 @@ class Solver():
 
             pbar.update(1)
             pbar.set_postfix(loss=ema_valid_loss)
-            
+
         pbar.close()
 
         return ema_valid_loss
@@ -133,6 +133,7 @@ class Solver():
                 
                 pbar.update(1)
                 pbar.set_postfix(loss=ema_train_loss)
+
             pbar.close()
             
             # Check EMA of training loss
@@ -142,10 +143,12 @@ class Solver():
                 patience += 1
             else:
                 patience = 0
+                max_train_loss = ema_train_loss
             
             if patience >= self.patience:
                 self.scheduler.step()
                 patience = 0
+                max_train_loss = ema_train_loss
 
             self.writer.add_scalar('train/loss', ema_train_loss, i)
             
