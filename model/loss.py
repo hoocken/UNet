@@ -44,13 +44,3 @@ class BinaryCrossEntropyLoss(nn.Module):
         """
         return self.loss(x, ground)
     
-
-class UNetLoss(nn.Module):
-    def __init__(self):
-        super(UNetLoss, self).__init__()
-        self.dsc = GeneralizedDiceLoss()
-        self.bce = BinaryCrossEntropyLoss()
-
-    def forward(self, x, ground):
-        return self.dsc(x, ground) + self.bce(x, ground)
-
