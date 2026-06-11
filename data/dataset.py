@@ -9,12 +9,13 @@ from data.dataloader import MultiEpochsDataLoader
 from torch.utils import data
 
 class UNet_Dataset(data.Dataset):
-    def __init__(self, filepath: str, image_dir: str, labels_dir: str, limit_files: int=None):
+    def __init__(self, filepath: str, image_dir: str, labels_dir: str, limit_files: int=None, channels: list[int]=None):
         self.filepath = filepath
         self.image_dir = image_dir
         self.labels_dir = labels_dir
         
         self.limit_files = limit_files
+        self.channels = [0] + channels if not channels is None else None
         self.dataset = self._load_data(filepath)
 
     def __len__(self):
@@ -25,10 +26,14 @@ class UNet_Dataset(data.Dataset):
         items = self.dataset[idx_k]
 
         image = Image.open(items['image']).convert('L')
-        image = pil_to_tensor(image).to(torch.float32)
+        image = pil_to_tensor(image).to(torch.float32) / 255.0
 
         label = np.load(items['label'])
-        label = torch.tensor(label).to(torch.float32)
+
+        if self.channels is None: 
+            label = torch.tensor(label).to(torch.float32)
+        else:
+            label = torch.tensor(label[self.channels, :, :]).to(torch.float32)
         
         return image, label
         
@@ -43,6 +48,11 @@ class UNet_Dataset(data.Dataset):
             for image in tqdm(images):
                 id = image['id']
                 file_name = image['file_name']
+
+                # Skip lateral views
+                if 'lateral' in file_name:
+                    continue
+
                 data_name = Path(file_name).stem
                 items[id] = {
                     'name': data_name,
@@ -56,8 +66,8 @@ class UNet_Dataset(data.Dataset):
 
         return items
     
-def build_loader(filepath, image_dir, labels_dir, batch_size=42, limit_files=None):
-    dataset = UNet_Dataset(filepath, image_dir, labels_dir, limit_files)
+def build_loader(filepath, image_dir, labels_dir, batch_size=42, limit_files=None, channels=None):
+    dataset = UNet_Dataset(filepath, image_dir, labels_dir, limit_files, channels)
     generator = torch.Generator().manual_seed(200)
 
     train_set, validation_set = data.random_split(dataset, [0.8, 0.2], generator)
