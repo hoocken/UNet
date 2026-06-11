@@ -142,7 +142,7 @@ class RandomResize:
         return image, seg
     
 class RandomAffine:
-    def __init__(self, degrees=180, min_resize=0.6, translation=0.1):
+    def __init__(self, degrees=180, min_resize=0.8, translation=0.1):
         """
         Applies an affine transform
         Parameters:
