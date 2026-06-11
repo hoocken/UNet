@@ -9,16 +9,16 @@ class Conv(nn.Module):
         super(Conv, self).__init__()
         conv_layers = [
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding='same'), # nnUNet uses same padding
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
+            nn.GroupNorm(32, out_channels, affine=True),
+            nn.LeakyReLU(),
         ]
 
         conv_layers += [
             x for _ in range(num_layers - 1)
             for x in [
                 nn.Conv2d(out_channels, out_channels, kernel_size=3, padding='same'),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(),
+                nn.GroupNorm(32, out_channels, affine=True),
+                nn.LeakyReLU(),
             ]
         ]
 
@@ -38,13 +38,14 @@ class Down(nn.Module):
 class Up(nn.Module):
     def __init__(self,
                  in_channels,
+                 out_channels,
                  bilinear=True):
         super(Up, self).__init__()
         if bilinear:
             self.up = nn.UpsamplingBilinear2d(scale_factor=2)
-            self.conv = nn.Conv2d(in_channels, in_channels // 2, 2, padding='same')
+            self.conv = nn.Conv2d(in_channels, out_channels, 2, padding='same')
         else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, 2, stride=2)
+            self.up = nn.ConvTranspose2d(in_channels, out_channels, 2, stride=2)
 
     def forward(self, x):
         res = self.up(x)
@@ -74,10 +75,10 @@ class DownConv(nn.Module):
         return self.down(conv), conv
     
 class UpConv(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, up_channels, out_channels, bilinear=True):
         super(UpConv, self).__init__()
-        self.convs = Conv(in_channels, out_channels, 2)
-        self.up = Up(in_channels, bilinear=bilinear)
+        self.up = Up(in_channels, up_channels, bilinear=bilinear)
+        self.convs = Conv(up_channels * 2, out_channels, 2)
 
     def forward(self, x, skip):
         """
