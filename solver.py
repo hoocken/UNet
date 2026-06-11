@@ -9,8 +9,9 @@ from tqdm import tqdm
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import v2
+import matplotlib.pyplot as plt
 
-from model.loss import UNetLoss
+from model.loss import BinaryCrossEntropyLoss, GeneralizedDiceLoss
 from model.unet import UNet
 from data.dataloader import infinite_iterator
 from data.transform import RandomAffine, RandomCrop, GaussianBlur, RandomHorizontalFlip, RandomResize, RandomRotation
@@ -25,12 +26,14 @@ class Solver():
         self.validation_ld = validation_ld
 
         self.train_iter = infinite_iterator(train_ld)
+        self.valid_iter = infinite_iterator(validation_ld)
 
         self.lr = config.lr
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.unet = UNet(config.num_classes).to(self.device)
-        self.criteria = UNetLoss().to(self.device)
+        self.dsc_loss = GeneralizedDiceLoss().to(self.device)
+        self.bce_loss = BinaryCrossEntropyLoss().to(self.device)
         self.optimizer = torch.optim.Adam(self.unet.parameters(), lr=self.lr)
         self.scheduler = ExponentialLR(self.optimizer, config.decay) # LR decay
         
@@ -56,8 +59,8 @@ class Solver():
             checkpoint = torch.load(config.load_state, weights_only=True)
             self.unet.load_state_dict(checkpoint['unet_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict']) # LR decay
-            self.start_epoch = config.start_epoch
+            # self.scheduler.load_state_dict(checkpoint['scheduler_state_dict']) # LR decay
+            self.start_epoch = checkpoint['epoch']
 
         self.save = config.save_every
 
@@ -72,24 +75,33 @@ class Solver():
     @torch.no_grad 
     def validate(self):
         valid_loss_list = []
+        bce_loss_list = []
+        dsc_loss_list = []
+
         pbar = tqdm(total=self.valid_epoch_length, ncols=0, desc="Valid Epoch", file=sys.stdout)
         for _ in range(self.valid_epoch_length):
-            images, labels = next(self.train_iter)
+            images, labels = next(self.valid_iter)
             images, labels = images.to(self.device), labels.to(self.device)
 
             pred = self.unet(images)
-            loss = self.criteria(pred, labels)
+            bce_loss = self.bce_loss(pred, labels)
+            dsc_loss = self.dsc_loss(pred, labels)
+            loss = bce_loss + dsc_loss
 
             valid_loss_list.append(loss.detach().item())
+            bce_loss_list.append(bce_loss.detach().item())
+            dsc_loss_list.append(dsc_loss.detach().item())
            
-
             pbar.update(1)
-            pbar.set_postfix(loss=sum(valid_loss_list) / len(valid_loss_list))
+            pbar.set_postfix(loss=self._calculate_mean_loss(valid_loss_list), bce=self._calculate_mean_loss(bce_loss_list), dsc=self._calculate_mean_loss(dsc_loss_list))
 
         pbar.close()
 
-        return sum(valid_loss_list) / len(valid_loss_list)
+        return self._calculate_mean_loss(valid_loss_list), self._calculate_mean_loss(bce_loss_list), self._calculate_mean_loss(dsc_loss_list)
 
+    def _calculate_mean_loss(self, x):
+        return sum(x) / len(x)
+    
     def train(self):
         max_train_loss = None
         max_valid_loss = None
@@ -101,9 +113,12 @@ class Solver():
         ema_train_loss = None
         ema_valid_loss = None
 
+        train_loss_list = deque(maxlen=self.epoch_length)
+        bce_loss_list = deque(maxlen=self.epoch_length)
+        dsc_loss_list = deque(maxlen=self.epoch_length)
+
         print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
-            train_loss_list = []
             pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
 
             for _ in range(self.epoch_length):
@@ -114,21 +129,35 @@ class Solver():
                 images, labels = self.transform(images, labels)
 
                 pred = self.unet(images)
-                loss = self.criteria(pred, labels)
+                bce_loss = self.bce_loss(pred, labels)
+                dsc_loss = self.dsc_loss(pred, labels)
+                loss = bce_loss + dsc_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
 
                 self.optimizer.step()
 
+                # print(images.shape, labels.shape)
+                # if i >= 50 and loss.detach().item() >= 1:
+                #     plt.imsave("img_plot.png", images[0][0].cpu())
+                #     plt.imsave("label_plot.png", labels[0][1].cpu())
+                #     plt.imsave("pred_plot.png", pred[0][1].detach().cpu())
+
+                #     raise Exception 
+
                 train_loss_list.append(loss.detach().item())
+                bce_loss_list.append(bce_loss.detach().item())
+                dsc_loss_list.append(dsc_loss.detach().item())
                
                 pbar.update(1)
-                pbar.set_postfix(loss=sum(train_loss_list) / len(train_loss_list))
+                pbar.set_postfix(loss=self._calculate_mean_loss(train_loss_list), bce=self._calculate_mean_loss(bce_loss_list), dsc=self._calculate_mean_loss(dsc_loss_list))
 
             pbar.close()
             
-            mean_train_loss = sum(train_loss_list) / len(train_loss_list)
+            mean_train_loss = self._calculate_mean_loss(train_loss_list) 
+            mean_bce_loss = self._calculate_mean_loss(bce_loss_list)
+            mean_dsc_loss = self._calculate_mean_loss(dsc_loss_list)
 
             if ema_train_loss is None:
                 ema_train_loss = mean_train_loss
@@ -151,11 +180,14 @@ class Solver():
 
             self.writer.add_scalar('train/ema_loss', ema_train_loss, i)
             self.writer.add_scalar('train/loss', mean_train_loss, i)
+            self.writer.add_scalar('train/bce_loss', mean_bce_loss, i)
+            self.writer.add_scalar('train/dsc_loss', mean_dsc_loss, i)
+            self.writer.add_scalar('train/lr', self.scheduler.get_last_lr()[0], i)
             
             # ----------------------------------------------------------
             # Validation
             # ----------------------------------------------------------
-            mean_valid_loss = self.validate()
+            mean_valid_loss, mean_valid_bce_loss, mean_valid_dsc_loss = self.validate()
 
             if ema_valid_loss is None:
                 ema_valid_loss = mean_valid_loss
@@ -165,20 +197,23 @@ class Solver():
             tqdm.write(f'[TRAIN: {i + 1}] loss = {ema_train_loss}', file=sys.stdout)
             tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
             self.writer.add_scalar('eval/ema_loss', ema_valid_loss, i)
-            self.writer.add_scalar('eval/train_loss', mean_valid_loss, i)
+            self.writer.add_scalar('eval/loss', mean_valid_loss, i)
+            self.writer.add_scalar('eval/bce_loss', mean_valid_bce_loss, i)
+            self.writer.add_scalar('eval/dsc_loss', mean_valid_dsc_loss, i)
 
             # Check EMA of validation loss
             if max_valid_loss is None:
                 max_valid_loss = ema_valid_loss
-            elif max_valid_loss - self.valid_threshold < ema_valid_loss and self.scheduler.get_last_lr()[0] > 1e-6:
+            elif max_valid_loss - self.valid_threshold < ema_valid_loss and self.scheduler.get_last_lr()[0] < 1e-6:
                 cutoff += 1
             else:
                 cutoff = 0
                 max_valid_loss = ema_valid_loss
                 saved_model = self.unet.state_dict()
 
-            if i % self.save == 0 or cutoff >= self.valid_cutoff:
-                checkpoint = self.checkpoints / (f'unet-epoch{i}.pt' if i % self.save == 0 else 'final-weights.pt')
+            if i % self.save == 0 or cutoff >= self.valid_cutoff or i == self.total_epochs - 1:
+                name = 'final-weights.pt' if cutoff >= self.valid_cutoff or i == self.total_epochs - 1 else f'unet-epoch{i}.pt'
+                checkpoint = self.checkpoints / name
                 self.unet.cpu()
                 torch.save({
                     'epoch': i,
