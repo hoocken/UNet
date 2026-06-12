@@ -11,16 +11,16 @@ class UNet(nn.Module):
             DownConv(32, 64), # 128
             DownConv(64, 128), # 64
             DownConv(128, 256), # 32
-            DownConv(256, 480), # 16
-            DownConv(480, 480), # 8
+            DownConv(256, 512), # 16
+            DownConv(512, 1024), # 8
         ])
         
-        self.conv = Conv(480, 480, 2)
+        self.conv = Conv(1024, 1024, 2)
 
         self.up_convs =  nn.ModuleList([
-            UpConv(480, 480, 480),
-            UpConv(480, 480, 480),
-            UpConv(480, 256, 256),
+            UpConv(1024, 1024, 1024),
+            UpConv(1024, 512, 512),
+            UpConv(512, 256, 256),
             UpConv(256, 128, 128),
             UpConv(128, 64, 64),
             UpConv(64, 32, 32),

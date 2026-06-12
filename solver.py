@@ -223,6 +223,9 @@ class Solver():
                     'loss': ema_valid_loss,
                     }, checkpoint)
                 self.unet.to(self.device)
+
+                if cutoff >= self.valid_cutoff:
+                    return
             
             
             

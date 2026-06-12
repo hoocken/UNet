@@ -8,22 +8,25 @@ data:
   # filepath: 'batch_test.json'
   image_dir: '/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas'
   labels_dir: '/media/data/student/paxraypp/labels_unpacked/labels_converted'
-  batch_size: 10
+  batch_size: 4
+  channels: [1, 9, 10, 12, 13, 14] # spine, scapula left, scapula right, sternum, clavicle left, clavicle right
 
 train:
   model_dir: 'models_checkpoint'
-  lr: 0.0003
-  num_classes: 27
+  lr: 0.000012
+  num_classes: 16
   decay: 0.2
   moving_avg_alpha: 0.1
-  patience: 30
-  valid_cutoff: 60
+  patience: 5
+  valid_cutoff: 20
   train_threshold: 0.005
   valid_threshold: 0.005
-  total_epochs: 200
-  epoch_length: 250
-  valid_epoch_length: 50
-  save_every: 100
-  load_state: False
+  total_epochs: 500
+  epoch_length: 800
+  valid_epoch_length: 100
+  save_every: 25
+  load_state: # Leave empty if not loading from checkpoint
   
-
+run:
+  num_classes: 7
+  weights: 'models_checkpoint/checkpoints/20260611-064108/unet-epoch100.pt'
