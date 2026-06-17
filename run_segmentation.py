@@ -9,7 +9,10 @@ from torchvision.transforms.functional import pil_to_tensor
 
 from data.dataset import build_loader
 from solver import Solver
-
+"""
+Mapping:
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # spine, scapula left, scapula right, sternum, clavicle left, clavicle right, lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
+"""
 @hydra.main(version_base=None, config_path='config', config_name='config')
 def main(config: DictConfig):
     config = config.run
@@ -33,7 +36,7 @@ def main(config: DictConfig):
     # np.save('segmentation', res)
 
     plt.imsave("img_plot.png", image[0].detach().cpu())
-    plt.imsave("pred_plot.png", res[6])
+    plt.imsave("pred_plot.png", res[5])
     plt.imsave("label_plot.png", pred[14])
 
 

@@ -32,7 +32,7 @@ def main(config: DictConfig):
         config.train
     )
 
-    solver.train()
+    solver.training()
 
 
 if __name__ == "__main__":

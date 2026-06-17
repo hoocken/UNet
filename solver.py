@@ -78,6 +78,8 @@ class Solver():
         bce_loss_list = []
         dsc_loss_list = []
 
+        self.unet.eval()
+
         pbar = tqdm(total=self.valid_epoch_length, ncols=0, desc="Valid Epoch", file=sys.stdout)
         for _ in range(self.valid_epoch_length):
             images, labels = next(self.valid_iter)
@@ -99,10 +101,47 @@ class Solver():
 
         return self._calculate_mean_loss(valid_loss_list), self._calculate_mean_loss(bce_loss_list), self._calculate_mean_loss(dsc_loss_list)
 
+    def train(self, train_loss_list, bce_loss_list, dsc_loss_list):
+        pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
+        self.unet.train()
+            
+        for _ in range(self.epoch_length):
+            images, labels = next(self.train_iter)
+            images = images.to(self.device)
+            labels = labels.to(self.device)
+
+            images, labels = self.transform(images, labels)
+
+            pred = self.unet(images)
+            bce_loss = self.bce_loss(pred, labels)
+            dsc_loss = self.dsc_loss(pred, labels)
+            loss = bce_loss + dsc_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+
+            self.optimizer.step()
+
+            train_loss_list.append(loss.detach().item())
+            bce_loss_list.append(bce_loss.detach().item())
+            dsc_loss_list.append(dsc_loss.detach().item())
+
+            mean_train_loss = self._calculate_mean_loss(train_loss_list) 
+            mean_bce_loss = self._calculate_mean_loss(bce_loss_list)
+            mean_dsc_loss = self._calculate_mean_loss(dsc_loss_list)
+            
+            pbar.update(1)
+            pbar.set_postfix(loss=mean_train_loss, bce=mean_bce_loss, dsc=mean_dsc_loss)
+
+        pbar.close()
+        
+        return mean_train_loss, mean_bce_loss, mean_dsc_loss
+        
+        
     def _calculate_mean_loss(self, x):
         return sum(x) / len(x)
     
-    def train(self):
+    def training(self):
         max_train_loss = None
         max_valid_loss = None
 
@@ -119,45 +158,7 @@ class Solver():
 
         print("Start training...")
         for i in range(self.start_epoch, self.total_epochs):
-            pbar = tqdm(total=self.epoch_length, ncols=0, desc="Train Epoch", file=sys.stdout)
-
-            for _ in range(self.epoch_length):
-                images, labels = next(self.train_iter)
-                images = images.to(self.device)
-                labels = labels.to(self.device)
-
-                images, labels = self.transform(images, labels)
-
-                pred = self.unet(images)
-                bce_loss = self.bce_loss(pred, labels)
-                dsc_loss = self.dsc_loss(pred, labels)
-                loss = bce_loss + dsc_loss
-
-                self.optimizer.zero_grad()
-                loss.backward()
-
-                self.optimizer.step()
-
-                # print(images.shape, labels.shape)
-                # if i >= 50 and loss.detach().item() >= 1:
-                #     plt.imsave("img_plot.png", images[0][0].cpu())
-                #     plt.imsave("label_plot.png", labels[0][1].cpu())
-                #     plt.imsave("pred_plot.png", pred[0][1].detach().cpu())
-
-                #     raise Exception 
-
-                train_loss_list.append(loss.detach().item())
-                bce_loss_list.append(bce_loss.detach().item())
-                dsc_loss_list.append(dsc_loss.detach().item())
-               
-                pbar.update(1)
-                pbar.set_postfix(loss=self._calculate_mean_loss(train_loss_list), bce=self._calculate_mean_loss(bce_loss_list), dsc=self._calculate_mean_loss(dsc_loss_list))
-
-            pbar.close()
-            
-            mean_train_loss = self._calculate_mean_loss(train_loss_list) 
-            mean_bce_loss = self._calculate_mean_loss(bce_loss_list)
-            mean_dsc_loss = self._calculate_mean_loss(dsc_loss_list)
+            mean_train_loss, mean_train_bce_loss, mean_train_dsc_loss = self.train(train_loss_list, bce_loss_list, dsc_loss_list)
 
             if ema_train_loss is None:
                 ema_train_loss = mean_train_loss
@@ -180,13 +181,10 @@ class Solver():
 
             self.writer.add_scalar('train/ema_loss', ema_train_loss, i)
             self.writer.add_scalar('train/loss', mean_train_loss, i)
-            self.writer.add_scalar('train/bce_loss', mean_bce_loss, i)
-            self.writer.add_scalar('train/dsc_loss', mean_dsc_loss, i)
+            self.writer.add_scalar('train/bce_loss', mean_train_bce_loss, i)
+            self.writer.add_scalar('train/dsc_loss', mean_train_dsc_loss, i)
             self.writer.add_scalar('train/lr', self.scheduler.get_last_lr()[0], i)
             
-            # ----------------------------------------------------------
-            # Validation
-            # ----------------------------------------------------------
             mean_valid_loss, mean_valid_bce_loss, mean_valid_dsc_loss = self.validate()
 
             if ema_valid_loss is None:
@@ -194,12 +192,13 @@ class Solver():
             else:
                 ema_valid_loss = self.moving_avg_alpha * mean_valid_loss + (1 - self.moving_avg_alpha) * ema_valid_loss
 
-            tqdm.write(f'[TRAIN: {i + 1}] loss = {ema_train_loss}', file=sys.stdout)
-            tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
             self.writer.add_scalar('eval/ema_loss', ema_valid_loss, i)
             self.writer.add_scalar('eval/loss', mean_valid_loss, i)
             self.writer.add_scalar('eval/bce_loss', mean_valid_bce_loss, i)
             self.writer.add_scalar('eval/dsc_loss', mean_valid_dsc_loss, i)
+            
+            tqdm.write(f'[TRAIN: {i + 1}] loss = {ema_train_loss}', file=sys.stdout)
+            tqdm.write(f'[EVAL: {i + 1}] loss = {ema_valid_loss}\n', file=sys.stdout)
 
             # Check EMA of validation loss
             if max_valid_loss is None:
