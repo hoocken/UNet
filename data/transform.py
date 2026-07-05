@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from torchvision import transforms
-from torchvision.transforms import functional
+from torchvision.transforms.v2 import functional
 import abc
 
     
@@ -48,6 +48,35 @@ class RandomHorizontalFlip:
             seg = functional.hflip(seg)
 
         return image, seg
+    
+class RandomInvert:
+    """
+    Transform class that flips an image horizontically randomly with a given probability.
+    """
+
+    def __init__(self, prob=0.5):
+        """
+        Parameters:
+            prob: Probability of the image being flipped
+        """
+        self.p = prob
+
+    def __call__(self, image, seg):
+        """
+        Flip the image and segmentation correspondingly
+
+        Parameters:
+            image: ndarray of shape (H, W)
+            seg: ndarray of shape (C, H, W)
+        
+        Returns:
+            Transformed image and segmentation
+        """
+        rand = random.uniform(0,1)
+        if rand < self.p:
+            image = functional.invert(image)
+
+        return image, seg
 
 class RandomRotation:
     def __init__(self):
@@ -64,22 +93,32 @@ class RandomRotation:
         return image, seg
     
 class GaussianBlur:
-    def __init__(self):
-        pass
+    def __init__(self, kernel_size=5, range=[0.1, 2]):
+        self.kernel_size = kernel_size
+        self.range = range
 
     def __call__(self, image, seg):
-        # strength = random.uniform(0, 0.5)
-        image = functional.gaussian_blur(image, 5, [0.1, 2])
+        image = functional.gaussian_blur(image, self.kernel_size, self.range)
+
+        return image, seg
+    
+class GaussianNoise:
+    def __init__(self, noise=0.05):
+        self.noise = noise
+
+    def __call__(self, image, seg):
+        image = functional.gaussian_noise(image, 0, self.noise)
 
         return image, seg
 
 class RandomCrop:
-    def __init__(self, min_crop_size=0.5):
+    def __init__(self, min_crop_size=0.3, translation_range=[0.75, 1.25]):
         """
         Parameters:
             min_crop_size: Minimal size proportion that an image can be cropped to, before being resized
         """
         self.min_crop_size = min_crop_size
+        self.translation_range = translation_range
 
     def __call__(self, image, seg):
         """
@@ -97,7 +136,7 @@ class RandomCrop:
         # if rand < self.p:
         _, _, H, W = image.shape
 
-        params = transforms.RandomResizedCrop.get_params(image, [self.min_crop_size, 1], [0.75, 1.25])
+        params = transforms.RandomResizedCrop.get_params(image, [self.min_crop_size, 1], self.translation_range)
             
             # size = random.randint(int(self.min_crop_size * H), H)
             # left = random.randint(0, W - size)

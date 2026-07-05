@@ -6,6 +6,14 @@ class Conv(nn.Module):
                  in_channels,
                  out_channels,
                  num_layers):
+        """
+        Convolutional block made out of Conv2d, GroupNorm, and LeakyReLU.
+
+        Parameters:
+            in_channels: Number of input channels
+            out_channels: Number of output channels
+            num_layers: Number of convolutional block layers
+        """
         super(Conv, self).__init__()
         conv_layers = [
             nn.Conv2d(in_channels, out_channels, kernel_size=3, padding='same'), # nnUNet uses same padding
@@ -76,6 +84,15 @@ class DownConv(nn.Module):
     
 class UpConv(nn.Module):
     def __init__(self, in_channels, up_channels, out_channels, bilinear=True):
+        """
+        Up convolution block.
+
+        Parameters:
+            in_channels: Number of input channels
+            up_channels: Number of channels after upsampling/up-convolution
+            out_channels: Number of output channels
+            bilinear: Use bilinear upsampling. If False, use up convolution.
+        """
         super(UpConv, self).__init__()
         self.up = Up(in_channels, up_channels, bilinear=bilinear)
         self.convs = Conv(up_channels * 2, out_channels, 2)

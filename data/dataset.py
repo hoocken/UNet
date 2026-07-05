@@ -70,7 +70,7 @@ def build_loader(filepath, image_dir, labels_dir, batch_size=42, limit_files=Non
     dataset = UNet_Dataset(filepath, image_dir, labels_dir, limit_files, channels)
     generator = torch.Generator().manual_seed(200)
 
-    train_set, validation_set = data.random_split(dataset, [0.8, 0.2], generator)
+    train_set, validation_set = data.random_split(dataset, [0.9, 0.1], generator)
     
     train_ld = MultiEpochsDataLoader(
         train_set,

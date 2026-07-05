@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from model.loss import BinaryCrossEntropyLoss, GeneralizedDiceLoss
 from model.unet import UNet
 from data.dataloader import infinite_iterator
-from data.transform import RandomAffine, RandomCrop, GaussianBlur, RandomHorizontalFlip, RandomResize, RandomRotation
+from data.transform import GaussianNoise, RandomAffine, RandomCrop, GaussianBlur, RandomHorizontalFlip, RandomInvert, RandomResize, RandomRotation
 
 
 
@@ -29,9 +29,10 @@ class Solver():
         self.valid_iter = infinite_iterator(validation_ld)
 
         self.lr = config.lr
+        self.deep_supervised = config.deep_supervised
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.unet = UNet(config.num_classes).to(self.device)
+        self.unet = UNet(config.num_classes, config.num_layers, config.max_channels, config.deep_supervised).to(self.device)
         self.dsc_loss = GeneralizedDiceLoss().to(self.device)
         self.bce_loss = BinaryCrossEntropyLoss().to(self.device)
         self.optimizer = torch.optim.Adam(self.unet.parameters(), lr=self.lr)
@@ -49,10 +50,12 @@ class Solver():
         self.start_epoch = 0
 
         self.transform = v2.Compose([
-            RandomHorizontalFlip(),
+            # RandomHorizontalFlip(),
+            RandomInvert(),
             RandomCrop(),
             RandomAffine(),
             GaussianBlur(),
+            GaussianNoise(),
         ])
 
         if config.load_state:
@@ -84,8 +87,13 @@ class Solver():
         for _ in range(self.valid_epoch_length):
             images, labels = next(self.valid_iter)
             images, labels = images.to(self.device), labels.to(self.device)
+            images, labels = self.transform(images, labels) # Also transform validation set, as we want to also use it for "hard" examples 
 
-            pred = self.unet(images)
+            if self.deep_supervised:
+                pred, _ = self.unet(images)
+            else:
+                pred = self.unet(images)
+
             bce_loss = self.bce_loss(pred, labels)
             dsc_loss = self.dsc_loss(pred, labels)
             loss = bce_loss + dsc_loss
@@ -112,9 +120,20 @@ class Solver():
 
             images, labels = self.transform(images, labels)
 
-            pred = self.unet(images)
-            bce_loss = self.bce_loss(pred, labels)
-            dsc_loss = self.dsc_loss(pred, labels)
+            bce_loss = 0
+            dsc_loss = 0
+            if self.deep_supervised:
+                pred, deep = self.unet(images)
+                
+                for layer in deep:
+                    downsampled_labels = torch.nn.functional.interpolate(labels, (layer.shape[2], layer.shape[3]), mode='bilinear') # Downsample ground truth
+                    bce_loss += self.bce_loss(layer, downsampled_labels)
+                    dsc_loss += self.dsc_loss(layer, downsampled_labels)
+            else:
+                pred = self.unet(images)
+
+            bce_loss += self.bce_loss(pred, labels)
+            dsc_loss += self.dsc_loss(pred, labels)
             loss = bce_loss + dsc_loss
 
             self.optimizer.zero_grad()
@@ -209,23 +228,26 @@ class Solver():
                 cutoff = 0
                 max_valid_loss = ema_valid_loss
                 saved_model = self.unet.state_dict()
-
-            if i % self.save == 0 or cutoff >= self.valid_cutoff or i == self.total_epochs - 1:
-                name = 'final-weights.pt' if cutoff >= self.valid_cutoff or i == self.total_epochs - 1 else f'unet-epoch{i}.pt'
+                
+            if cutoff >= self.valid_cutoff or i == self.total_epochs - 1:
+                name = 'final-weights.pt'
+                checkpoint = self.checkpoints / name
+                self.unet.cpu()
+                torch.save({
+                    'unet_state_dict': saved_model,
+                    }, checkpoint)
+                self.unet.to(self.device)
+                return
+            
+            if i % self.save == 0:
+                name = f'unet-epoch{i}.pt'
                 checkpoint = self.checkpoints / name
                 self.unet.cpu()
                 torch.save({
                     'epoch': i,
-                    'unet_state_dict': self.unet.state_dict() if i % self.save == 0 else saved_model,
+                    'unet_state_dict': self.unet.state_dict(),
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'scheduler_state_dict': self.scheduler.state_dict(),
                     'loss': ema_valid_loss,
                     }, checkpoint)
                 self.unet.to(self.device)
-
-                if cutoff >= self.valid_cutoff:
-                    return
-            
-            
-            
-

@@ -1,3 +1,8 @@
+defaults:
+  - _self_
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+
 hydra:
   run:
     dir: .
@@ -9,24 +14,31 @@ data:
   image_dir: '/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas'
   labels_dir: '/media/data/student/paxraypp/labels_unpacked/labels_converted'
   batch_size: 4
-  channels: [2, 3, 4, 5, 6, 15] # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
+  # channels: [2, 3, 4, 5, 6, 15]
+  channels: [1, 9, 10, 12, 13, 14] # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
 
 train:
   model_dir: 'models_checkpoint'
   lr: 0.000012
-  num_classes: 16
+  num_classes: 7
+  num_layers: 7
+  max_channels: 512
+  deep_supervised: True
   decay: 0.2
   moving_avg_alpha: 0.1
-  patience: 10
-  valid_cutoff: 20
+  patience: 20
+  valid_cutoff: 40
   train_threshold: 0.005
   valid_threshold: 0.005
   total_epochs: 500
   epoch_length: 800
   valid_epoch_length: 100
-  save_every: 25
+  save_every: 50
   load_state: # Leave empty if not loading from checkpoint
   
 run:
   num_classes: 7
-  weights: 'weights/lungs-heart-weights.pt'
+  num_layers: 7
+  max_channels: 512
+  deep_supervised: False
+  weights: 'models_checkpoint/checkpoints/20260704-121650/final-weights.pt'
