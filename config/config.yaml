@@ -23,7 +23,7 @@ train:
   num_classes: 7
   num_layers: 7
   max_channels: 512
-  deep_supervised: True
+  deep_supervised: 3
   decay: 0.2
   moving_avg_alpha: 0.1
   patience: 20

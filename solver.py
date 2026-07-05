@@ -89,10 +89,7 @@ class Solver():
             images, labels = images.to(self.device), labels.to(self.device)
             images, labels = self.transform(images, labels) # Also transform validation set, as we want to also use it for "hard" examples 
 
-            if self.deep_supervised:
-                pred, _ = self.unet(images)
-            else:
-                pred = self.unet(images)
+            pred = self.unet(images)
 
             bce_loss = self.bce_loss(pred, labels)
             dsc_loss = self.dsc_loss(pred, labels)
@@ -122,9 +119,9 @@ class Solver():
 
             bce_loss = 0
             dsc_loss = 0
-            if self.deep_supervised:
-                pred, deep = self.unet(images)
-                
+            if self.deep_supervised > 0:
+                pred, deep = self.unet(images, True)
+
                 for layer in deep:
                     downsampled_labels = torch.nn.functional.interpolate(labels, (layer.shape[2], layer.shape[3]), mode='bilinear') # Downsample ground truth
                     bce_loss += self.bce_loss(layer, downsampled_labels)

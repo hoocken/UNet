@@ -27,10 +27,10 @@ class UNet(nn.Module):
         
         self.deep_supervision_heads = nn.ModuleList([ 
             nn.Sequential(
-                nn.Conv2d(channel_numbers[i - 1], num_classes, kernel_size=1),
+                nn.Conv2d(channel_numbers[i], num_classes, kernel_size=1),
                 nn.Sigmoid(),
             )
-            for i in range(self.deep_supervised_layers + 1, 1, -1) # Deep supervise the top nth layers
+            for i in range(self.deep_supervised_layers + 1, 1, -1) # Deep supervise the top nth layers except for the output
         ])
             
         self.out_conv = nn.Conv2d(32, num_classes, kernel_size=1)
@@ -47,19 +47,17 @@ class UNet(nn.Module):
         
         temp = self.conv(temp)
 
-        deep_supervised_index = 0
         for i in range(len(self.up_convs)):
             conv = skip.pop()
             temp = self.up_convs[i](temp, conv)
-            deep_supervised_index = i - len(self.up_convs) + self.deep_supervised_layers
-            if deep_supervised and i >= len(self.up_convs) - self.deep_supervised_layers: # i is more than the up_convs_length - deep_supervised_layers
-                
+            deep_supervised_index = i - len(self.up_convs) + self.deep_supervised_layers + 1 # Plus one due to skipping the output
+            if deep_supervised and 0 <= deep_supervised_index < self.deep_supervised_layers:  # Start from the nth layer from the top (except the output)
                 deep.append(self.deep_supervision_heads[deep_supervised_index](temp))
 
         out = self.out_conv(temp)
         res = self.activation(out)
 
-        if self.deep_supervision_heads:
-            return res
+        if deep_supervised and self.deep_supervised_layers > 0:
+            return res, deep
         else:
             return res
