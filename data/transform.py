@@ -79,15 +79,12 @@ class RandomInvert:
         return image, seg
 
 class RandomRotation:
-    def __init__(self):
+    def __init__(self, rotation=30):
+        self.rotation = rotation
         pass
 
     def __call__(self, image, seg):
-        # rand_rot = random.randint(0, 3)
-        # image = np.rot90(image, rand_rot)
-        # seg = np.rot90(seg, rand_rot, (1, 2))
-
-        params = transforms.RandomRotation.get_params([-180, 180])
+        params = transforms.RandomRotation.get_params([-self.rotation, self.rotation])
         image = functional.rotate(image, params)
         seg = functional.rotate(seg, params)
         return image, seg
@@ -181,7 +178,7 @@ class RandomResize:
         return image, seg
     
 class RandomAffine:
-    def __init__(self, degrees=180, min_resize=0.8, translation=0.1):
+    def __init__(self, degrees=30, min_resize=0.8, translation=0.1):
         """
         Applies an affine transform
         Parameters:

@@ -12,8 +12,10 @@ class UNet(nn.Module):
             num_classes: Number of output classes
             num_layers: Number of layers for U-Net (including deepest conv block)
             max_channels: Maximum number of channels (limit memory usage)
+            deep_supervised_layers: Number of UpConv results which are deeply supervised
         """
         super(UNet, self).__init__()
+        assert num_layers > deep_supervised_layers + 1 # Deep supervised layers does not include the deepest conv block
 
         # Get channel numbers for each layer. Double at every layer if not exceeding max_channels
         channel_numbers = [1] + [min(32 * (2 ** i), max_channels) for i in range(num_layers)]
