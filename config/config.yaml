@@ -14,8 +14,8 @@ data:
   image_dir: '/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas'
   labels_dir: '/media/data/student/paxraypp/labels_unpacked/labels_converted'
   batch_size: 4
-  # channels: [2, 3, 4, 5, 6, 15]
-  channels: [1, 9, 10, 12, 13, 14] # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
+  channels: [2, 3, 4, 5, 6, 15]
+  # channels: [1, 9, 10, 12, 13, 14] # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
 
 train:
   model_dir: 'models_checkpoint'
@@ -23,7 +23,7 @@ train:
   num_classes: 7
   num_layers: 7
   max_channels: 512
-  deep_supervised: 3
+  deep_supervised: 5
   decay: 0.2
   moving_avg_alpha: 0.1
   patience: 20
@@ -40,5 +40,4 @@ run:
   num_classes: 7
   num_layers: 7
   max_channels: 512
-  deep_supervised: False
-  weights: 'models_checkpoint/checkpoints/20260704-121650/final-weights.pt'
+  weights: 'models_checkpoint/checkpoints/20260706-112247/final-weights.pt'
