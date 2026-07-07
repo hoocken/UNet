@@ -20,9 +20,18 @@ def main(config: DictConfig):
     config = config.run
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    unet = UNet(config.num_classes, config.num_layers, config.max_channels, False).to(device)
+    unet = UNet(config.num_classes, config.num_layers, config.max_channels, 0).to(device)
     checkpoint = torch.load(config.weights, weights_only=True)
-    unet.load_state_dict(checkpoint['unet_state_dict'])
+    state_dict = checkpoint['unet_state_dict']
+
+    # Remove deep supervision heads (if available)
+    module_prefix = 'deep_supervision_heads'
+    keys_to_remove = [k for k in state_dict.keys() if k.startswith(module_prefix)]
+
+    for k in keys_to_remove:
+        del state_dict[k]
+
+    unet.load_state_dict(state_dict)
     
     # labels_path = "/media/data/student/paxraypp/labels_unpacked/labels_converted/"
     # images_path = "/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas/"
@@ -44,7 +53,7 @@ def main(config: DictConfig):
     res = res[0, :, :, :].detach().cpu()
     # np.save('segmentation', res)
 
-    plt.imsave("pred_plot.png", res[5] > 0.5)
+    plt.imsave("pred_plot.png", res[6] > 0.5)
     # plt.imsave("label_plot.png", pred[14])
 
 

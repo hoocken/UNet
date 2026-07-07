@@ -230,9 +230,18 @@ class Solver():
                 name = 'final-weights.pt'
                 checkpoint = self.checkpoints / name
                 self.unet.cpu()
+
+                # Remove deep supervision heads
+                module_prefix = "deep_supervision_heads"  
+                keys_to_remove = [k for k in saved_model.keys() if k.startswith(module_prefix)]
+                # Remove the keys
+                for k in keys_to_remove:
+                    del saved_model[k]
+
                 torch.save({
                     'unet_state_dict': saved_model,
                     }, checkpoint)
+                
                 self.unet.to(self.device)
                 return
             
