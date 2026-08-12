@@ -14,13 +14,12 @@ data:
   image_dir: '/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas'
   labels_dir: '/media/data/student/paxraypp/labels_unpacked/labels_converted'
   batch_size: 4
-  channels: [2, 3, 4, 5, 6, 15]
-  # channels: [1, 9, 10, 12, 13, 14] # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
-
+  channels: [2, 3, 4, 5, 6, 15, 16, 17, 18]  # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart, ascending aorta, descending aorta, aortic arch
+  # channels: [1, 9, 10, 12, 13, 14] # vertrebrae, scapula left, scapula right, sternum, clavicle left, clavicle right
 train:
   model_dir: 'models_checkpoint'
   lr: 0.000012
-  num_classes: 7
+  num_classes: 10
   num_layers: 7
   max_channels: 512
   deep_supervised: 5
@@ -37,7 +36,7 @@ train:
   load_state: # Leave empty if not loading from checkpoint
   
 run:
-  num_classes: 7
-  num_layers: 7
-  max_channels: 512
-  weights: 'models_checkpoint/checkpoints/20260706-112247/final-weights.pt'
+  lung_heart_weights: 'weights/lung-heart-weights.pt'
+  bones_weights: 'weights/bones-weights.pt'
+  output_folder: 'outputs'
+  input_image: ''
