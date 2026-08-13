@@ -60,6 +60,4 @@ def main(config: DictConfig):
     # plt.imsave("label_plot.png", label[18])
 
 if __name__ == "__main__":
-    # TODO: Add running from the CLI
     main()
-    # print('hi')

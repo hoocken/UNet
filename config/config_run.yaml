@@ -1,3 +1,13 @@
+defaults:
+  - _self_
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
 lung_heart_weights: 'weights/lung-heart-weights.pt'
 bones_weights: 'weights/bones-weights.pt'
 output_folder: 'outputs'
