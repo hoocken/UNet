@@ -10,12 +10,12 @@ hydra:
   
 data:
   filepath: '/media/data/student/paxraypp/paxray_train_val.json'
-  # filepath: 'batch_test.json'
   image_dir: '/media/data/student/paxraypp/paxray_images_unfiltered/images_patlas'
   labels_dir: '/media/data/student/paxraypp/labels_unpacked/labels_converted'
   batch_size: 4
   channels: [2, 3, 4, 5, 6, 15, 16, 17, 18]  # lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart, ascending aorta, descending aorta, aortic arch
   # channels: [1, 9, 10, 12, 13, 14] # vertrebrae, scapula left, scapula right, sternum, clavicle left, clavicle right
+
 train:
   model_dir: 'models_checkpoint'
   lr: 0.000012
@@ -34,10 +34,3 @@ train:
   valid_epoch_length: 100
   save_every: 50
   load_state: # Leave empty if not loading from checkpoint
-  
-run:
-  lung_heart_weights: 'weights/lung-heart-weights.pt'
-  bones_weights: 'weights/bones-weights.pt'
-  output_folder: 'outputs'
-  input_image: 'image_00000copy.png'
-  label_image: '/media/data/student/paxraypp/labels_unpacked/labels_converted/RibFrac_056_frontal.npy' # Leave empty if none

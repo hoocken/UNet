@@ -36,10 +36,8 @@ def load_unet(weights: str) -> UNet:
 Mapping:
 [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] # spine, scapula left, scapula right, sternum, clavicle left, clavicle right, lung_lower_lobe_left, lung_upper_lobe_left, lung_lower_lobe_right, lung_middle_lobe_right, lung_upper_lobe_right, heart
 """
-@hydra.main(version_base=None, config_path='config', config_name='config')
+@hydra.main(version_base=None, config_path='config', config_name='config_run')
 def main(config: DictConfig):
-    config = config.run
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lung_heart_unet = load_unet(config.lung_heart_weights).to(device)
     bones_unet = load_unet(config.bones_weights).to(device)

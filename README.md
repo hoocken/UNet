@@ -7,4 +7,4 @@ To run the segmentation, simply do
 python run_segmentation.py run.input_image=<INPUT_FILE>
 ```
 
-or set your own filepaths in `config/config.yaml`.
+or set your own filepaths in `config/config_run.yaml`.
