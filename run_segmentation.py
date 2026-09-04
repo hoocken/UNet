@@ -5,7 +5,8 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-from torchvision.transforms.functional import pil_to_tensor
+import SimpleITK as sitk
+from torchvision.transforms.functional import pil_to_tensor, resize
 
 MAP_TO_VIBES = {
     0: 69, # vertrabrae
@@ -72,10 +73,24 @@ def main(config: DictConfig):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     lung_heart_unet = load_unet(config.lung_heart_weights).to(device)
     bones_unet = load_unet(config.bones_weights).to(device)
-    
-    image = Image.open(config.input_image).convert('L').resize((512, 512))
-    image = pil_to_tensor(image).to(dtype=torch.float32, device=device) / 255
-    image = image.unsqueeze(0).to(device)
+
+    format = config.input_image.split('.')[-1]
+
+    if format == 'png':
+        image = Image.open(config.input_image)
+        orig_size = image.size
+        image = image.convert('L').resize((512, 512))
+        
+        image = pil_to_tensor(image).to(dtype=torch.float32, device=device) / 255
+        image = image.unsqueeze(0)
+    elif format == 'gz': # NIFTI
+        image = sitk.ReadImage(config.input_image)
+        image = sitk.GetArrayFromImage(image)
+        orig_size = image.shape
+
+        image = torch.tensor(image[[0]], dtype=torch.float) # get first slice
+        image = torch.flip(image, [1, 2])
+        image = resize(image, [512, 512]).unsqueeze(0).to(device)
 
     if config.label_image:
         # TODO: Add measurement of dice scores (for evaluation)
@@ -97,9 +112,14 @@ def main(config: DictConfig):
     for i, v in map.items():
         mapped_result[v] += result[i] > 0.5
 
+    # Resize
+    mapped_result = resize(mapped_result, orig_size[1:])
+    image = resize(image, orig_size[1:])
+
     np.save(config.output_folder + '/segmentation_result.npy', mapped_result.detach().cpu())
-    plt.imsave("result_plot.png", mapped_result.cpu()[25])
-    plt.imsave("label_plot.png", label[18])
+    plt.imsave(config.output_folder + "/result_plot.png", mapped_result.cpu()[18])
+    plt.imsave(config.output_folder + "/label_plot.png", label[15])
+    plt.imsave(config.output_folder + "/img_plot.png", image[0, 0].detach().cpu(), cmap='gray')
 
 if __name__ == "__main__":
     main()
