@@ -85,11 +85,11 @@ def main(config: DictConfig):
         image = image.unsqueeze(0)
     elif format == 'gz': # NIFTI
         image = sitk.ReadImage(config.input_image)
+        image = sitk.DICOMOrient(image, 'LPS') # Reorient slice
         image = sitk.GetArrayFromImage(image)
         orig_size = image.shape
 
         image = torch.tensor(image[[0]], dtype=torch.float) # get first slice
-        image = torch.flip(image, [1, 2])
         image = resize(image, [512, 512]).unsqueeze(0).to(device)
 
     if config.label_image:
@@ -117,8 +117,8 @@ def main(config: DictConfig):
     image = resize(image, orig_size[1:])
 
     np.save(config.output_folder + '/segmentation_result.npy', mapped_result.detach().cpu())
-    plt.imsave(config.output_folder + "/result_plot.png", mapped_result.cpu()[18])
-    plt.imsave(config.output_folder + "/label_plot.png", label[15])
+    plt.imsave(config.output_folder + "/result_plot.png", mapped_result.cpu()[25])
+    # plt.imsave(config.output_folder + "/label_plot.png", label[15])
     plt.imsave(config.output_folder + "/img_plot.png", image[0, 0].detach().cpu(), cmap='gray')
 
 if __name__ == "__main__":
